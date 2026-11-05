@@ -1,58 +1,64 @@
-# Agent Skills
+# Harness Subagents
 
-[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/MKPE9g8aUy)
+A standardized way to define reusable subagents for AI agent harnesses.
 
-A standardized way to give AI agents new capabilities and expertise.
+## What are Harness Subagents?
 
-## What are Agent Skills?
+Harness Subagents are a lightweight, open format for packaging delegated work so a parent agent can hand it off, reliably, to a child agent.
 
-Agent Skills are a lightweight, open format for extending AI agent capabilities with specialized knowledge and workflows.
+At its core, a subagent is a single Markdown file. This file includes metadata (`name` and `description`, at minimum) and a body of instructions that a harness gives to the subagent as its system prompt when the parent delegates work to it.
 
-At its core, a skill is a folder containing a `SKILL.md` file. This file includes metadata (`name` and `description`, at minimum) and instructions that tell an agent how to perform a specific task. Skills can also bundle scripts, reference materials, templates, and other resources.
+```markdown
+---
+name: repo-explorer
+description: Maps how a codebase implements a feature. Use before planning changes.
+complexity: low
+---
 
+You explore a codebase and report structure. You do not edit files.
+...
 ```
-my-skill/
-├── SKILL.md          # Required: metadata + instructions
-├── scripts/          # Optional: executable code
-├── references/       # Optional: documentation
-├── assets/           # Optional: templates, resources
-└── ...               # Any additional files or directories
-```
 
-## Why Agent Skills?
+## Why Harness Subagents?
 
-Agents are increasingly capable, but often don't have the context they need to do real work reliably. Skills solve this by packaging procedural knowledge and company-, team-, and user-specific context into portable, version-controlled folders that agents load on demand. This gives agents:
+A parent agent's context is its most expensive resource, and output is a lot more. Subagents solve this by moving focused work into an isolated context and returning only the result. This gives agent harnesses:
 
-- **Domain expertise**: Capture specialized knowledge — from legal review processes to data analysis pipelines to presentation formatting — as reusable instructions and resources.
-- **Repeatable workflows**: Turn multi-step tasks into consistent, auditable procedures.
-- **Cross-product reuse**: Build a skill once and use it across any skills-compatible agent.
+- **Context isolation**: Search noise, long tool output and intermediate drafts stay inside the subagent. The parent receives the deliverable, not the process.
+- **Reliable delegation**: The `description` is all the parent reads before delegating, so well-written files make the parent delegate at the right times.
+- **Cheaper, faster results**: Less expensive agentic work is done by efficient models, faster and avoiding over-expenditure.
+- **Cross-harness reuse**: Build a subagent once and use it across any compatible harness.
 
-## How do Agent Skills work?
+## How do Harness Subagents work?
 
-Agents load skills through **progressive disclosure**, in three stages:
+A subagent runs through a four-stage lifecycle:
 
-1. **Discovery**: At startup, agents load only the name and description of each available skill, just enough to know when it might be relevant.
+1. **Discovery**: At startup, the harness loads each subagent's name and description, just enough for the parent to know when delegation might help.
 
-2. **Activation**: When a task matches a skill's description, the agent reads the full `SKILL.md` instructions into context.
+2. **Delegation**: When a task matches a subagent's description, the parent delegates it with an objective, an expected deliverable and clear task boundaries.
 
-3. **Execution**: The agent follows the instructions, optionally executing bundled code or loading referenced files as needed.
+3. **Execution**: The harness spawns the subagent with the file's body as its system prompt, in an isolated context with no human in the loop.
 
-Full instructions load only when a task calls for them, so agents can keep many skills on hand with only a small context footprint.
+4. **Return**: The subagent reports the deliverable directly back to the parent, which keeps only what it needs.
 
-## Where can I use Agent Skills?
+The subagent works without directly steering, pausing or questions to the user. All user-facing communication flows through the parent.
 
-Agent Skills are supported by a large number of AI tools and agentic clients — see the [Client Showcase](https://agentskills.io/clients) to explore some of them!
+## Where can I use Harness Subagents?
 
-## Getting started
-
-- **[Documentation](https://agentskills.io)** — Guides and tutorials
-- **[Specification](https://agentskills.io/specification)** — Format details
-- **[Example Skills](https://github.com/anthropics/skills)** — See what's possible
-- **[Discord](https://discord.gg/MKPE9g8aUy)** — Share what you're building!
+Subagent support is spreading fast across agentic tools. File-based subagent formats exist today in Claude Code, GitHub Copilot, VS Code, Gemini CLI, OpenCode, OpenAI Codex and Amp, among others. This format mirrors their common shape, so a subagent written once maps naturally onto each of them, leaving room for custom adaptations for their model catalog and thinking effort.
 
 ## Open development
 
-The Agent Skills format was originally developed by [Anthropic](https://www.anthropic.com/), released as an open standard, and has been adopted by a growing number of agent products. The standard is open to contributions from the broader ecosystem — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for how to get involved.
+The Harness Subagents format is developed in the open and is open to contributions from the broader ecosystem — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for how to get involved. The project is maintained by [Italo Israel Baeza Cabrera (@darkghosthunter)](https://github.com/darkghosthunter) and is not affiliated with, endorsed by or supported by Anthropic or any other company.
+
+## Acknowledgements
+
+This project is based on the original [Agent Skills](https://agentskills.io) standard. It reuses that standard's structure, format conventions and documentation approach, adapted for subagents.
+
+## Getting started
+
+- **[Specification](docs/specification.mdx)** — Format details
+- **[Quickstart](docs/subagent-creation/quickstart.mdx)** — Create your first subagent
+- **[Best practices](docs/subagent-creation/best-practices.mdx)** — Write subagents that delegate and return well
 
 ## License
 

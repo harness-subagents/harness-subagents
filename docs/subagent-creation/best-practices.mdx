@@ -1,0 +1,141 @@
+---
+title: "Best practices for subagent creators"
+sidebarTitle: "Best practices"
+description: "How to write subagents that delegate well and return reports parents can act on."
+---
+
+## Start from real delegation pain
+
+A subagent earns its place when the parent repeatedly does the same kind of work badly inline: search noise flooding the context, a task that needs a fresh perspective, or work that would benefit from running in parallel. Effective subagents are grounded in that pain, not invented from a role chart.
+
+The fastest way to author one: complete the task inline in conversation with an agent, watch what the work actually involves, then extract the reusable pattern into a subagent file. Pay attention to:
+
+- **Steps that worked** — the sequence of actions that led to success
+- **Corrections you made** — places where you steered the approach
+- **What the parent needed afterward** — the deliverable that was actually used
+- **Context you had to provide** — project-specific facts the agent didn't already know
+
+## One responsibility per subagent
+
+Deciding what a subagent should cover is like deciding what a function should do: encapsulate one coherent unit of work that composes well with others. A subagent scoped too broadly is hard to delegate to precisely — its description matches too many tasks, and its body carries instructions that don't apply. A subagent scoped too narrowly forces the parent to orchestrate many tiny spawns.
+
+A subagent that reviews security-relevant code changes is one coherent unit. The same subagent that also fixes the vulnerabilities it finds is probably trying to do two jobs — and the second one likely needs different `tools` and a different `complexity`.
+
+## The body is the whole world
+
+When the harness spawns the subagent, the body becomes its system prompt. That is everything the subagent knows. It does not see the parent's conversation, the user's history or the reason the task matters — only the body and the task the parent sends.
+
+### Add what the subagent lacks, omit what it knows
+
+Focus on what a competent model wouldn't bring to the task on its own: project-specific conventions, the exact tools to use, non-obvious edge cases, and the deliverable shape. You don't need to explain what a code review is or how grep works.
+
+````markdown
+<!-- Too verbose — the subagent already knows how to search code -->
+## Finding code
+
+Codebases contain source files. You can search them with tools like
+grep, which finds lines matching a pattern...
+
+<!-- Better — jumps straight to what the subagent wouldn't know -->
+## Finding code
+
+Entry points live in `src/main/`. Feature work usually touches
+`src/modules/<name>/`. Start with `grep -r "feature_flag" src/` to
+find the flags registry before tracing any feature.
+````
+
+### Keep it lean
+
+Everything in the body is paid on every run, inside the subagent's own context window. A long body leaves less room for the actual work. Aim for a focused file — several hundred lines at most — and cut anything that fails the question: "Would the subagent get this wrong without this instruction?"
+
+## Design for no human in the loop
+
+Subagents are not steered, paused or corrected mid-run. There is no user to ask. Write the body for that reality:
+
+- **No blocking questions.** Never instruct the subagent to ask the user anything. When a decision is ambiguous, instruct it to pick the most reasonable option, record the assumption in its report and continue.
+- **Validate before returning.** No user will review the work mid-run. Instruct the subagent to check its own deliverable — run the tests, re-read the diff, verify the paths it cites — before it reports.
+- **Give a blocked path.** Tell the subagent what to do when it genuinely cannot proceed: return `Status: blocked` with what is missing, so the parent can decide.
+
+### Match specificity to fragility
+
+**Give the subagent freedom** when multiple approaches are valid. Explaining *why* outperforms rigid directives — a subagent that understands the purpose makes better context-dependent decisions:
+
+```markdown
+## Review focus
+
+1. Check all database queries for SQL injection (use parameterized queries)
+2. Verify authentication checks on every endpoint
+3. Confirm error messages don't leak internal details
+```
+
+**Be prescriptive** when operations are fragile or a sequence must hold:
+
+````markdown
+## Verification
+
+Run exactly this sequence before reporting:
+
+```bash
+npm test -- --bail
+```
+
+Do not modify the command or add flags.
+````
+
+Most bodies have a mix. Calibrate each part independently.
+
+### Provide defaults, not menus
+
+When several tools or approaches could work, pick a default and mention alternatives briefly. A subagent with three equal options spends its turns choosing; one with a default spends them working.
+
+## Restrict tools to the role
+
+The `tools` field is a least-privilege control. A read-only reviewer should not have editing or terminal tools; a test-runner should not have network access. Restricting tools also sharpens behavior: a subagent that cannot edit files stops considering edits.
+
+The harness enforces tool access. Instructions in the body are not a permission boundary — a body that says "do not edit files" does not prevent edits. Put real boundaries in `tools`.
+
+## Choosing complexity
+
+The `complexity` field is a suggestion to the harness about how much model capability and reasoning effort the work needs:
+
+| Level | Suited for | Example |
+|-------|------------|---------|
+| `minimal` | Retrieval, lookups, mechanical transforms | "Find every TODO comment and list them" |
+| `low` | Single-focus, bounded tasks | Map how a feature is implemented; run the test suite and report |
+| `normal` | Standard agentic work | Implement a small feature; review a change |
+| `high` | Complex, multi-step reasoning | Security review; deep debugging; synthesis across sources |
+| `max` | The hardest, longest-horizon work | Competitive research sweep; high-stakes analysis |
+
+Two rules of thumb:
+
+- **Pick the lowest level that can do the job.** Delegation multiplies cost: every subagent pays for its own context. The harness may run `minimal` work on a small, fast model — a real saving only if the level is honest.
+- **When in doubt, choose `normal`** and let the harness adapt. Complexity is a suggestion, not gospel; harnesses map it to their own models and effort levels and may override it per task.
+
+## When not to use a subagent
+
+Subagents are one of three ways to extend an agent. They compose, but they are not always the right one:
+
+| Need | Use |
+|------|-----|
+| Specialized knowledge or procedures loaded on demand | Skill |
+| Delegated, isolated unit of agentic work with a report back | Subagent |
+| External model or service: OCR, transcription, image generation, batch classification | Tool (MCP server or bundled script) |
+
+Delegation is the wrong tool when:
+
+- **The work needs shared decisions.** Subagents that make design choices in parallel — and never see each other's reasoning — produce work that doesn't fit together. Keep decision-making in the parent; delegate execution, not judgment.
+- **Parallel subagents would mutate the same files.** Conflicting edits are the classic failure. Split by area, or serialize.
+- **The task is a single inference call.** "Are these ten statements true or false?" is one structured call to a decision model — a tool, not a subagent spawn.
+- **The task is trivial.** A spawn costs more than the work when the work is a one-liner the parent can do inline.
+
+## Iterate with real delegation
+
+The first draft of a subagent usually needs refinement. Delegate real tasks to it, then read both the report and the execution trace: What triggered delegation that shouldn't have? What did the subagent miss? What did the parent never use from the report?
+
+Even a single pass of delegate-then-revise noticeably improves quality. For a structured loop with test cases and grading, see [Evaluating subagents](/subagent-creation/evaluating-subagents).
+
+## Next steps
+
+- **[Writing subagent descriptions](/subagent-creation/writing-descriptions)** — Test and improve the `description` field so the parent delegates at the right times.
+- **[Designing deliverables](/subagent-creation/designing-deliverables)** — Make the report the parent receives easy to act on.
+- **[Evaluating subagents](/subagent-creation/evaluating-subagents)** — Set up test cases and iterate systematically.

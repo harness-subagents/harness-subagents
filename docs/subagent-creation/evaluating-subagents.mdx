@@ -1,0 +1,132 @@
+---
+title: "Evaluating subagents"
+sidebarTitle: "Evaluating subagents"
+description: "How to test whether a subagent delegates, executes and reports reliably."
+---
+
+You wrote a subagent, delegated a task to it, and the report looked good. But does it work reliably — across varied tasks, in edge cases, better than the parent working inline? Structured evaluations answer these questions and give you a feedback loop for improving the subagent systematically.
+
+A subagent has two failure surfaces, and both need coverage:
+
+- **Delegation accuracy** — does the parent delegate the right tasks to it, and only those? See [Writing subagent descriptions](/subagent-creation/writing-descriptions) for that half.
+- **Execution and return quality** — given a task, does the subagent produce a deliverable the parent can act on? This page covers that half.
+
+## Designing test cases
+
+A test case has three parts:
+
+- **Task**: the delegation the parent would send — objective, boundaries, expected deliverable.
+- **Expected output**: a human-readable description of what success looks like.
+- **Input state** (optional): files or repository state the subagent works with.
+
+```json evals.json
+{
+  "subagent_name": "repo-explorer",
+  "evals": [
+    {
+      "id": 1,
+      "task": "Map how request rate limiting is implemented. Report where limits are enforced and where they are configured.",
+      "expected_output": "A completed report naming the middleware, the configuration source and key files with line ranges.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "task": "Map how background jobs are processed.",
+      "expected_output": "A completed report, or a blocked report if no job system exists — either is acceptable if the Notes justify it.",
+      "files": []
+    }
+  ]
+}
+```
+
+**Tips for good test tasks:**
+
+- **Start with 2-3 cases.** Expand after the first round of results.
+- **Vary the phrasing.** Some tasks terse, some with context, some where the deliverable is buried in a bigger request.
+- **Cover the blocked path.** Include at least one case the subagent cannot complete, and grade the blocked report itself: reason, missing resources, state left behind.
+
+## Running evals
+
+Run each test case twice: once **with the subagent** and once **without it** (the parent doing the work inline, or a previous version of the subagent). The baseline is what makes the comparison meaningful.
+
+Each run should start from a clean context. Harnesses with subagent support isolate runs naturally; otherwise use a fresh session per run.
+
+For each run, record:
+
+- The final report the parent received
+- Token count and duration
+- The execution trace (what the subagent actually did)
+
+```json timing.json
+{
+  "total_tokens": 41230,
+  "duration_ms": 18400
+}
+```
+
+Timing matters for subagents in both directions: a subagent that improves quality but multiplies token usage is a different trade-off than one that's better and cheaper. Remember that the with-subagent run includes delegation overhead; that is part of the cost.
+
+## Writing assertions
+
+Assertions are verifiable statements about the report. The deliverable shape itself is assertable:
+
+- `"The report starts with a Status line"` — structural.
+- `"The summary answers where rate limiting is enforced without requiring the artifacts"` — the stand-alone rule.
+- `"Every path listed under Artifacts exists"` — programmatically verifiable, and worth automating.
+- `"Notes disclose the assumption made about the missing config"` — for judgment calls.
+
+Weak assertions:
+
+- `"The report is good"` — too vague to grade.
+- `"The summary uses the exact phrase 'rate limiting middleware'"` — too brittle.
+
+Not everything needs an assertion. Whether the report *reads* well is better caught during human review.
+
+## Grading outputs
+
+Grade each assertion against the actual report and record PASS or FAIL with specific evidence — quote the report, don't state an opinion.
+
+- **Require concrete evidence for a PASS.** If an assertion says "the summary names the enforcement point" and the summary only says "middleware somewhere in the request pipeline", that's a FAIL.
+- **Grade the summary against the whole report.** The rule is that the parent can act on the summary alone; check whether that's true, not whether the summary is present.
+- **Review the assertions too.** Assertions that always pass in both configurations are measuring the baseline, not the subagent.
+
+<Tip>
+A useful mechanical check: extract every path under `## Artifacts` and verify it exists on disk. This one script catches the most common subagent failure — reporting work that wasn't done.
+</Tip>
+
+## Aggregating and iterating
+
+After grading, compute the delta between configurations:
+
+```json benchmark.json
+{
+  "run_summary": {
+    "with_subagent": { "pass_rate": 0.85, "tokens": 2100, "time_seconds": 38 },
+    "without_subagent": { "pass_rate": 0.80, "tokens": 9200, "time_seconds": 120 }
+  }
+}
+```
+
+A subagent earns its keep when the delta is positive where it matters: quality per parent token. A small pass-rate gain that costs the parent thousands of context tokens is usually a loss — the whole point of delegation is keeping the parent lean.
+
+Then iterate:
+
+1. **Failed assertions** point to gaps in the body — a missing step, an ambiguous instruction.
+2. **Human feedback** on the reports points to broader quality issues.
+3. **Execution traces** reveal why: instructions the subagent ignored, wasted detours, reports heavier than the parent needed.
+
+Feed all three, plus the current file, back into the subagent. Keep the body lean while you iterate — if transcripts show wasted work, remove instructions rather than adding more.
+
+### The loop
+
+1. Give the eval signals and the current subagent file to an agent and ask for proposed changes.
+2. Review and apply the changes.
+3. Rerun all test cases from clean context.
+4. Grade, aggregate, review with a human. Repeat.
+
+Stop when feedback is consistently empty or improvements stall.
+
+## Next steps
+
+- **[Writing subagent descriptions](/subagent-creation/writing-descriptions)** — If the subagent executes well but rarely gets delegated to, the description is the bottleneck.
+- **[Designing deliverables](/subagent-creation/designing-deliverables)** — Shape the report the evals are grading.

@@ -1,5 +1,5 @@
 {
-  "name": "agentskills",
+  "name": "harness-subagents",
   "private": true,
   "scripts": {
     "dev": "cd docs && npx mint dev"

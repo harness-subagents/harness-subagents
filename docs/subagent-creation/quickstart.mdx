@@ -1,0 +1,89 @@
+---
+title: "Quickstart"
+description: "Create your first subagent and see it work in Claude Code."
+---
+
+In this tutorial, you'll create a subagent that explores a codebase and reports back where and how something is implemented.
+
+## Prerequisites
+
+- [Claude Code](https://code.claude.com/docs/en/quickstart) installed
+
+<Note>
+This tutorial uses Claude Code, but Harness Subagents is an open format. The same file works in any harness with file-based subagents, including GitHub Copilot, VS Code, Gemini CLI and OpenCode — each harness discovers subagent files in its own directory and maps the fields it knows.
+</Note>
+
+## Create the subagent
+
+Claude Code discovers subagents in `.claude/agents/`. Create `.claude/agents/repo-explorer.md` in your project:
+
+````markdown .claude/agents/repo-explorer.md
+---
+name: repo-explorer
+description: Maps how a codebase implements a feature or concept. Use when the parent needs to know where and how something works before planning or editing code. Read-only.
+complexity: low
+tools: Read Grep Glob
+---
+
+You explore a codebase and report structure. You do not edit files.
+
+Work from the task you were given:
+
+1. Locate the relevant code. Search broadly first, then narrow down.
+2. Trace how it works: entry points, key modules, data flow.
+3. Report back using this shape:
+
+## Status
+completed or blocked
+
+## Summary
+Where the feature lives and how it works, in one paragraph.
+
+## Artifacts
+The key files and line ranges, as a list.
+
+## Notes
+Anything the parent should know before changing this code.
+````
+
+That's it — one file. Here's what each part does:
+
+- **`name`** — A short identifier for the subagent. Must match the file name.
+- **`description`** — Tells the parent when to delegate. This is how the parent decides whether to use the subagent.
+- **`complexity`** — A hint for the harness to pick a model and reasoning effort. `low` fits bounded, single-focus work.
+- **`tools`** — Restricts the subagent to read-only tools, matching its scope.
+- **The body** — Instructions the harness gives the subagent as its system prompt. Here, they define the work and the report shape the parent receives.
+
+## Try it out
+
+1. Open your project in Claude Code.
+2. Type `/agents` to confirm that `repo-explorer` appears in the list. If it doesn't, check that the file is at `.claude/agents/repo-explorer.md` relative to your project root.
+3. Ask: **"Where and how is user authentication handled in this repo?"**
+
+The parent should delegate the task to `repo-explorer`. The subagent runs in its own context, searches the codebase and returns a report. The parent relays the answer.
+
+<Note>
+If the parent answers without delegating, its task may look small enough to handle alone. Rephrase to emphasize the scope ("map everything involved", "before I change anything"), or check the [description guide](/subagent-creation/writing-descriptions) for how to make delegation trigger reliably.
+</Note>
+
+## How it works
+
+Here's what happened behind the scenes:
+
+1. **Discovery** — When the session started, the harness scanned the subagent directory and found your file. It read only the `name` and `description`, just enough for the parent to know when delegation might help.
+
+2. **Delegation** — When your question matched the description, the parent delegated the task with an objective and boundaries.
+
+3. **Execution** — The harness spawned the subagent with the body as its system prompt, in an isolated context with no human in the loop.
+
+4. **Return** — The subagent reported its deliverable directly back to the parent, which kept the summary and the file list.
+
+The search noise — every grep hit and file read — stayed inside the subagent. The parent's context only grew by the report.
+
+## Next steps
+
+You've created a working subagent. From here:
+
+- **[Best practices](/subagent-creation/best-practices)** — How to write subagents that delegate and return well.
+- **[Designing deliverables](/subagent-creation/designing-deliverables)** — Make the report the parent receives easy to act on.
+- **[Specification](/specification)** — The complete format reference.

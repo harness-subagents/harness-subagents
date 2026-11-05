@@ -1,0 +1,130 @@
+---
+title: "Writing subagent descriptions"
+sidebarTitle: "Writing descriptions"
+description: "How to improve your subagent's description so the parent delegates at the right times."
+---
+
+A subagent only helps if the parent delegates to it. The `description` field in your frontmatter is the only part of the file the parent reads before deciding. An under-specified description means the subagent sits unused; an over-broad description means the parent delegates tasks that belonged elsewhere.
+
+This guide covers how to test and improve your description for delegation accuracy.
+
+## How delegation works
+
+At discovery time, the harness loads each subagent's `name` and `description` — just enough for the parent to know what is available. When a task matches a description, the parent delegates the task to that subagent and the harness spawns it with the body as its system prompt.
+
+This means the description carries the entire burden of delegation. If it doesn't convey when delegation helps, the parent won't reach for it.
+
+One nuance: parents typically delegate tasks that are worth isolating — noisy searches, focused analysis, parallelizable work. A one-liner the parent can answer inline may not trigger delegation even if the description matches perfectly. Descriptions make the difference on tasks where isolation, focus or parallelism actually pays.
+
+## Writing effective descriptions
+
+- **Use imperative phrasing.** Frame it as an instruction to the parent: "Use when..." rather than "This subagent does...". The parent is deciding whether to act, so tell it when to act.
+- **State the deliverable.** Describe what comes back: "reports pass/fail results grouped by root cause", not "works with tests". The parent weighs what it gets against what it sends.
+- **Declare the boundaries.** A "Do not use for..." clause is the cheapest way to prevent mis-delegation: "Do not use for writing new tests or fixing test failures." Boundary keywords work like trigger keywords — parents match against both.
+- **Focus on the task, not the implementation.** Describe the work the parent wants done, not the subagent's internal mechanics.
+- **Keep it concise.** A few sentences is usually right. The [specification](/specification#description-field) enforces a hard limit of 1024 characters.
+
+<Card>
+**Good example:**
+```yaml
+description: Runs the project's test suite and reports pass/fail results grouped by root cause. Use when verifying code changes, before commits, or after refactors. Do not use for writing new tests or fixing test failures.
+```
+
+**Poor example:**
+```yaml
+description: Helps with tests.
+```
+</Card>
+
+## Designing delegation eval queries
+
+To test delegation, you need a set of eval queries — realistic parent prompts labeled with whether the parent should or shouldn't delegate to your subagent.
+
+```json eval_queries.json
+[
+  { "query": "I just refactored the auth module — can you make sure nothing broke?", "should_delegate": true },
+  { "query": "write a unit test for the session expiry logic", "should_delegate": false }
+]
+```
+
+Aim for about 20 queries: half that should delegate, half that shouldn't.
+
+### Should-delegate queries
+
+Vary them along several axes:
+
+- **Phrasing**: some formal, some casual, some with typos.
+- **Explicitness**: some name the work directly ("run the tests"), others describe the need ("did I break anything?").
+- **Context**: mix terse prompts with context-heavy ones that bury the task in a larger chain.
+
+The most useful should-delegate queries are ones where delegation helps but the connection isn't obvious from the query alone — "before I commit this, is everything green?" should reach a test-runner subagent even though it never says "test".
+
+### Should-not-delegate queries
+
+The most valuable negative cases are **near-misses** — queries that share keywords with your subagent but need something different. These test precision, not just breadth.
+
+For a test-runner subagent, strong negatives are:
+
+- `"write a test for the retry logic"` — about tests, but needs authoring, not running.
+- `"the checkout test is failing, fix it"` — about a test failure, but needs a fix, not a report.
+
+Weak negatives ("what's the weather?") test nothing.
+
+## Testing whether the parent delegates
+
+The basic approach: run each query through your harness with the subagent installed and observe whether the parent delegates to it. Most harnesses make this observable — tool call histories, verbose output or agent transcripts show which subagents ran.
+
+A query "passes" if:
+- `should_delegate` is `true` and the parent delegated to your subagent, or
+- `should_delegate` is `false` and it did not.
+
+Model behavior is nondeterministic. Run each query multiple times (3 is a reasonable start) and compute a **delegation rate**: the fraction of runs where the parent delegated. A should-delegate query passes above a threshold; a should-not-delegate query passes below it.
+
+You can script this. Replace the harness invocation and detection logic with whatever your harness provides:
+
+```bash
+#!/bin/bash
+QUERIES_FILE="${1:?Usage: $0 <queries.json>}"
+SUBAGENT_NAME="test-runner"
+RUNS=3
+
+# This example checks Claude Code JSON output for a Task tool call that
+# spawned the named subagent. Replace with detection logic for your harness.
+# Should return 0 (success) if the subagent was delegated to, 1 otherwise.
+check_delegated() {
+  local query="$1"
+  claude -p "$query" --output-format json 2>/dev/null \
+    | jq -e --arg name "$SUBAGENT_NAME" \
+      'any(.. | .subagent_type?; . == $name)' \
+    > /dev/null 2>&1
+}
+
+count=$(jq length "$QUERIES_FILE")
+for i in $(seq 0 $((count - 1))); do
+  query=$(jq -r ".[$i].query" "$QUERIES_FILE")
+  should=$(jq -r ".[$i].should_delegate" "$QUERIES_FILE")
+  hits=0
+  for run in $(seq 1 $RUNS); do
+    check_delegated "$query" && hits=$((hits + 1))
+  done
+  jq -n \
+    --arg query "$query" \
+    --argjson should_delegate "$should" \
+    --argjson hits "$hits" \
+    --argjson runs "$RUNS" \
+    '{query: $query, should_delegate: $should_delegate, delegation_rate: ($hits / $runs)}'
+done | jq -s '.'
+```
+
+## The optimization loop
+
+1. **Evaluate** the current description on the full query set.
+2. **Identify failures.** If should-delegate queries miss, the description may be too narrow — broaden the scope or add context about when delegation helps. If should-not-delegate queries fire, it may be too broad — sharpen the "Do not use for" boundary or clarify the line between this subagent and adjacent capabilities.
+3. **Revise generally.** Avoid copying keywords from failed queries — that's overfitting. Address the category the queries represent.
+4. **Repeat** until queries pass or improvement stalls. Five iterations is usually enough.
+
+When you're done, verify the description still respects the [1024-character limit](/specification#description-field) — descriptions tend to grow during optimization.
+
+## Next steps
+
+Once your subagent delegates reliably, evaluate what it returns. See [Evaluating subagents](/subagent-creation/evaluating-subagents) for test cases, grading and iteration.

@@ -1,0 +1,103 @@
+---
+title: "Designing deliverables"
+sidebarTitle: "Designing deliverables"
+description: "How to shape what a subagent reports back so the parent can act on it."
+---
+
+The subagent's report is the only thing the parent receives. Everything else — every search, every file read, every draft — stays inside the subagent. Design the report first and the body second: the body exists to produce the deliverable.
+
+## The minimum deliverable
+
+The [specification](/specification#the-deliverable) recommends a minimum shape:
+
+```markdown
+## Status
+completed | blocked
+
+## Summary
+One paragraph the parent can act on without reading anything else.
+
+## Artifacts
+File paths or the deliverable itself.
+
+## Notes
+Assumptions, deviations and follow-ups for the parent.
+```
+
+The rules that make it work:
+
+- **Status first.** A parent juggling several subagents triages by status before reading anything else. Two values are enough: `completed` and `blocked`.
+- **The summary stands alone.** Assume the parent reads nothing below it. One paragraph: what was produced and the key outcome.
+- **Artifacts are addresses, not contents.** Return paths and locations. The parent loads what it needs, when it needs it.
+- **Notes carry judgment.** Assumptions the subagent made, deviations from the task, and anything the parent should know before acting. Omit the section when it's empty.
+
+Put the template in the subagent's body. Subagents pattern-match well against concrete structures — a body that shows the report shape gets that shape back.
+
+## A worked example
+
+A `repo-explorer` subagent asked to map how authentication works returns:
+
+```markdown
+## Status
+completed
+
+## Summary
+Authentication is session-based. Requests hit `src/middleware/auth.ts`, which
+validates the session cookie against `src/auth/store.ts` and attaches the user
+to the request. Login lives in `src/routes/login.ts` and sets the cookie;
+refresh happens silently in the middleware. There is no token-based path.
+
+## Artifacts
+- src/middleware/auth.ts:15-89 (validation and refresh)
+- src/auth/store.ts (session storage, Redis-backed)
+- src/routes/login.ts:8-41 (login flow)
+
+## Notes
+Session TTL is configured in `src/config/auth.ts` as 24h. Changing the store
+interface affects the middleware contract, which has no tests.
+```
+
+The summary is enough to answer the parent's question. The artifacts tell the parent exactly where to look when it acts. The notes prevent a mistake the parent would otherwise make. Nothing more.
+
+## Big outputs: write files, return paths
+
+When the deliverable is large — a full report, generated code, a dataset — have the subagent write it to a file and return the path. This keeps the parent's context small and gives the parent a durable artifact to hand to the next subagent, to the user, or to version control.
+
+```markdown
+## Artifacts
+Full findings: evals/reports/auth-review-2026-11-05.md
+Repro script: evals/scripts/repro-token-leak.py
+```
+
+Instruct the subagent to make every path absolute or unambiguous, and to verify each artifact exists before reporting it. A path to a file that was never written is the most expensive kind of lie in a report.
+
+## When blocked
+
+A subagent cannot ask the user for help. Its only recourse is a well-formed blocked report:
+
+```markdown
+## Status
+blocked
+
+## Summary
+Cannot verify the fix: the test suite requires a Postgres instance and none
+is reachable from this environment.
+
+## Artifacts
+Analysis of the suspected cause: evals/reports/checkout-bug-analysis.md
+
+## Notes
+Missing: a reachable `DATABASE_URL`. Resuming is safe — no files were modified.
+```
+
+What makes a blocked report useful: the reason (one sentence), what is missing, and whether the run left state behind. The parent can then fix the situation and re-delegate, or take over.
+
+<Note>
+Design the body so the subagent records assumptions in Notes rather than blocking on them. Blocked status is for missing *resources* — credentials, unreachable services, absent files — not for judgment calls.
+</Note>
+
+## Calibrating detail
+
+When the parent runs several subagents, their reports share one context. Five subagents returning five detailed reports can crowd out the parent's own reasoning.
+
+Keep summaries tight, push detail into artifacts, and let the task the parent sends set the depth — the parent can ask for "a two-sentence summary" or "every finding with file and line" in the delegation. If the report keeps coming back heavier than the parent needs, the fix is in the body's deliverable section, not in the parent's reading habits.

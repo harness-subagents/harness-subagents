@@ -1,53 +1,50 @@
 ---
 title: "Specification"
-description: "The complete format specification for Agent Skills."
+description: "The complete format specification for Harness Subagents."
 ---
 
-## Directory structure
+## File format
 
-A skill is a directory containing, at minimum, a `SKILL.md` file:
+A subagent is defined by a single Markdown file. The file contains YAML frontmatter followed by Markdown content. The frontmatter holds metadata; the body holds the subagent's instructions.
 
 ```
-skill-name/
-├── SKILL.md          # Required: metadata + instructions
-├── scripts/          # Optional: executable code
-├── references/       # Optional: documentation
-├── assets/           # Optional: templates, resources
-└── ...               # Any additional files or directories
+repo-explorer.md
+├── Frontmatter     # Metadata: name, description, complexity, ...
+└── Body            # Instructions the harness uses as the subagent's system prompt
 ```
 
-## `SKILL.md` format
+The file name (without the `.md` extension) identifies the subagent. Where subagent files live is up to each harness — see [adding subagents support](/harness-implementation/adding-subagents-support) for the conventions existing harnesses use.
 
-The `SKILL.md` file must contain YAML frontmatter followed by Markdown content.
+A subagent file is self-contained. It does not bundle scripts, references or other supporting files.
 
-### Frontmatter
+## Frontmatter
 
 | Field | Required | Constraints |
 |-------|----------|-------------|
 | `name` | Yes | Max 64 characters. Lowercase letters, numbers, and hyphens only. Must not start or end with a hyphen. |
-| `description` | Yes | Max 1024 characters. Non-empty. Describes what the skill does and when to use it. |
-| `license` | No | License name or reference to a bundled license file. |
-| `compatibility` | No | Max 500 characters. Indicates environment requirements (intended product, system packages, network access, etc.). |
+| `description` | Yes | Max 1024 characters. Non-empty. Describes what the subagent does and when a parent should delegate to it. |
+| `complexity` | No | One of `minimal`, `low`, `normal`, `high`, `max`. Defaults to `normal`. |
+| `tools` | No | Space-separated string of tools the subagent may use. (Experimental) |
 | `metadata` | No | Arbitrary key-value mapping for additional metadata (a map from string keys to string values). |
-| `allowed-tools` | No | Space-separated string of pre-approved tools the skill may use. (Experimental) |
 
 <Card>
 **Minimal example:**
 
-```markdown SKILL.md
+```markdown repo-explorer.md
 ---
-name: skill-name
-description: A description of what this skill does and when to use it.
+name: repo-explorer
+description: Maps how a codebase implements a feature. Use before planning changes.
 ---
 ```
 
 **Example with optional fields:**
 
-```markdown SKILL.md
+```markdown security-reviewer.md
 ---
-name: pdf-processing
-description: Extract PDF text, fill forms, merge files. Use when handling PDFs.
-license: Apache-2.0
+name: security-reviewer
+description: Reviews code changes for security vulnerabilities. Use when a change touches authentication, input handling or dependencies.
+complexity: high
+tools: Read Grep Glob
 metadata:
   author: example-org
   version: "1.0"
@@ -62,29 +59,29 @@ The required `name` field:
 - May only contain unicode lowercase alphanumeric characters (`a-z`, `0-9`) and hyphens (`-`)
 - Must not start or end with a hyphen (`-`)
 - Must not contain consecutive hyphens (`--`)
-- Must match the parent directory name
+- Must match the file name without the `.md` extension
 
 <Card>
 **Valid examples:**
 ```yaml
-name: pdf-processing
+name: repo-explorer
 ```
 ```yaml
-name: data-analysis
+name: test-runner
 ```
 ```yaml
-name: code-review
+name: code-reviewer
 ```
 
 **Invalid examples:**
 ```yaml
-name: PDF-Processing  # uppercase not allowed
+name: Repo-Explorer  # uppercase not allowed
 ```
 ```yaml
-name: -pdf  # cannot start with hyphen
+name: -explorer  # cannot start with hyphen
 ```
 ```yaml
-name: pdf--processing  # consecutive hyphens not allowed
+name: repo--explorer  # consecutive hyphens not allowed
 ```
 </Card>
 
@@ -92,63 +89,68 @@ name: pdf--processing  # consecutive hyphens not allowed
 
 The required `description` field:
 - Must be 1-1024 characters
-- Should describe both what the skill does and when to use it
-- Should include specific keywords that help agents identify relevant tasks
+- Should describe what the subagent does and when a parent should delegate to it
+- Should include the boundaries of the task: subagents a parent should *not* delegate to this one help the parent choose correctly
+
+The description is the only part of the file a parent reads before deciding to delegate. It carries the entire burden of delegation.
 
 <Card>
 **Good example:**
 ```yaml
-description: Extracts text and tables from PDF files, fills PDF forms, and merges multiple PDFs. Use when working with PDF documents or when the user mentions PDFs, forms, or document extraction.
+description: Runs the project's test suite and reports pass/fail results grouped by root cause. Use when verifying code changes, before commits, or after refactors. Do not use for writing new tests or fixing test failures.
 ```
 
 **Poor example:**
 ```yaml
-description: Helps with PDFs.
+description: Helps with tests.
 ```
 </Card>
 
-#### `license` field
+#### `complexity` field
 
-The optional `license` field:
-- Specifies the license applied to the skill
-- We recommend keeping it short (either the name of a license or the name of a bundled license file)
+The optional `complexity` field:
+- Must be one of `minimal`, `low`, `normal`, `high` or `max` if provided
+- Defaults to `normal` when omitted
+- Suggests how much model capability and reasoning effort the subagent's work needs
+
+| Level | Suited for |
+|-------|------------|
+| `minimal` | Retrieval, lookups, mechanical transforms. Little or no reasoning. |
+| `low` | Single-focus, bounded tasks: run a known procedure, simple fixes, format checks. |
+| `normal` | Standard agentic work: implementation, review, multi-step research. |
+| `high` | Complex reasoning: architecture, deep debugging, security review, synthesis across sources. |
+| `max` | The hardest tasks: long-horizon research, high-stakes analysis. Cost scales sharply. |
+
+Complexity is a suggestion, not a requirement. Harnesses adapt it to their own APIs: they decide which model and which reasoning effort fit the level, and they may override the suggestion per task based on their model lineup, availability or cost policy. Two harnesses may run the same `high` subagent on different models. That is the intent.
 
 <Card>
 **Example:**
 ```yaml
-license: Proprietary. LICENSE.txt has complete terms
+complexity: low
 ```
 </Card>
 
-#### `compatibility` field
+#### `tools` field
 
-The optional `compatibility` field:
-- Must be 1-500 characters if provided
-- Should only be included if your skill has specific environment requirements
-- Can indicate intended product, required system packages, network access needs, etc.
+The optional `tools` field:
+- A space-separated string of tools the subagent may use
+- Tool names are harness-specific. Omitting the field means the subagent inherits whatever the harness gives it
+- Experimental. Support for this field may vary between harness implementations
+
+The harness enforces tool access. The body asking a subagent to "not edit files" is not a permission boundary — this field is.
 
 <Card>
-**Examples:**
+**Example:**
 ```yaml
-compatibility: Designed for Claude Code (or similar products)
-```
-```yaml
-compatibility: Requires git, docker, jq, and access to the internet
-```
-```yaml
-compatibility: Requires Python 3.14+ and uv
+tools: Read Grep Glob
 ```
 </Card>
-
-<Note>
-Most skills do not need the `compatibility` field.
-</Note>
 
 #### `metadata` field
 
 The optional `metadata` field:
 - A map from string keys to string values
-- Clients can use this to store additional properties not defined by the Agent Skills spec
+- Harnesses can use this to store additional properties not defined by the Harness Subagents spec, such as provider-specific model routing
 - We recommend making your key names reasonably unique to avoid accidental conflicts
 
 <Card>
@@ -160,88 +162,85 @@ metadata:
 ```
 </Card>
 
-#### `allowed-tools` field
-
-The optional `allowed-tools` field:
-- A space-separated string of tools that are pre-approved to run
-- Experimental. Support for this field may vary between agent implementations
-
-<Card>
-**Example:**
-```yaml
-allowed-tools: Bash(git:*) Bash(jq:*) Read
-```
-</Card>
-
 ### Body content
 
-The Markdown body after the frontmatter contains the skill instructions. There are no format restrictions. Write whatever helps agents perform the task effectively.
+The Markdown body after the frontmatter contains the subagent's instructions. There are no format restrictions. Write whatever helps the subagent perform the delegated work effectively.
+
+The harness gives the body to the subagent as its system prompt when the parent delegates a task. The subagent does not see the parent's conversation, the user's history or any other context — only the body and the task the parent sends.
 
 Recommended sections:
-- Step-by-step instructions
-- Examples of inputs and outputs
-- Common edge cases
+- Role and scope: what the subagent is, what it may and may not do
+- Tool expectations: how to approach the work with the tools it has
+- Constraints: boundaries that apply to every run, such as read-only scope
+- Deliverable expectations: what to report back and in what shape
 
-Note that the agent will load this entire file once it's decided to activate a skill. Consider splitting longer `SKILL.md` content into referenced files.
+Everything in the body is paid on every run, inside the subagent's own context window. A long body leaves less room for the work. Keep it focused; several hundred lines at most.
 
-## Optional directories
+## Lifecycle
 
-A skill directory may contain any files and directories beyond the required `SKILL.md`. The conventions below are recommendations for organizing common types of content.
+A subagent runs through four stages.
 
-### `scripts/`
+1. **Discovery**: The harness loads each subagent's `name` and `description` at startup. This is all the parent knows about the subagent when deciding whether to delegate.
 
-Contains executable code that agents can run. Scripts should:
-- Be self-contained or clearly document dependencies
-- Include helpful error messages
-- Handle edge cases gracefully
+2. **Delegation**: The parent sends a task to the subagent. Effective tasks include an objective, the expected deliverable, guidance on tools and sources to use, and clear task boundaries.
 
-Supported languages depend on the agent implementation. Common options include Python, Bash, and JavaScript.
+3. **Execution**: The harness spawns the subagent with the body as its system prompt, in an isolated context. The subagent works on the task using the tools the harness grants it.
 
-### `references/`
+4. **Return**: The subagent reports its deliverable directly back to the parent. The parent decides what to keep.
 
-Contains additional documentation that agents can read when needed:
-- `REFERENCE.md` - Detailed technical reference
-- `FORMS.md` - Form templates or structured data formats
-- Domain-specific files (`finance.md`, `legal.md`, etc.)
+## Communication constraints
 
-Keep individual [reference files](#file-references) focused. Agents load these on demand, so smaller files mean less use of context.
+These constraints follow from what a subagent is: a child of a parent agent, running without a human in the loop.
 
-### `assets/`
+- **No human intervention.** Subagents are not steered, paused or corrected mid-run. A subagent that needs a decision makes a reasonable assumption, records it in its report and continues.
+- **No blocking questions.** A subagent cannot ask the user anything. When genuinely stuck, it returns a blocked status with what is missing, and the parent decides what happens next.
+- **The parent is the only audience.** Everything a user eventually reads passes through the parent. A subagent writes for the parent, not for the user.
+- **No depth guarantee.** A parent may itself be a subagent. Harnesses may limit nesting. Subagent authors should not design around a specific depth.
 
-Contains static resources:
-- Templates (document templates, configuration templates)
-- Images (diagrams, examples)
-- Data files (lookup tables, schemas)
+## The deliverable
 
-## Progressive disclosure
+Every subagent run ends with a report to the parent. The report is the product; the parent may read many of them in one session, so each one must be easy to act on.
 
-Agents load skills *progressively*, pulling in more detail only as a task calls for it. Skills should be structured to take advantage of this:
+The recommended minimum deliverable:
 
-1. **Metadata** (~100 tokens): The `name` and `description` fields are loaded at startup for all skills
-2. **Instructions** (< 5000 tokens recommended): The full `SKILL.md` body is loaded when the skill is activated
-3. **Resources** (as needed): Files (e.g. those in `scripts/`, `references/`, or `assets/`) are loaded only when required
+```markdown
+## Status
+completed | blocked
 
-Keep your main `SKILL.md` under 500 lines. Move detailed reference material to separate files.
+## Summary
+One paragraph the parent can act on without reading anything else.
 
-## File references
+## Artifacts
+File paths or the deliverable itself.
 
-When referencing other files in your skill, use relative paths from the skill root:
-
-```markdown SKILL.md
-See [the reference guide](references/REFERENCE.md) for details.
-
-Run the extraction script:
-scripts/extract.py
+## Notes
+Assumptions, deviations and follow-ups for the parent.
 ```
 
-Keep file references one level deep from `SKILL.md`. Avoid deeply nested reference chains.
+Rules of thumb:
+- **Status first.** A parent triaging several subagents reads statuses before anything else.
+- **The summary stands alone.** Assume the parent reads nothing below it. If the summary needs the artifacts to make sense, it is not done.
+- **Point, don't paste.** For large outputs, write them to files and return paths. The parent loads what it needs.
+- **Omit empty sections.** A completed run with no caveats needs no Notes section.
 
-## Validation
+This shape is a recommendation, not a requirement. Harnesses and parents may negotiate other formats; the task a parent sends can specify one.
 
-Use the [skills-ref](https://github.com/agentskills/agentskills/tree/main/skills-ref) reference library to validate your skills:
+## Subagents, skills, and tools
 
-```bash
-skills-ref validate ./my-skill
-```
+The format is one of three ways to give an agent more capability. They compose, and choosing the right one matters:
 
-This checks that your `SKILL.md` frontmatter is valid and follows all naming conventions.
+| Need | Use |
+|------|-----|
+| Specialized knowledge or procedures an agent loads when a task calls for them | [Skill](https://agentskills.io) |
+| Delegated, isolated unit of agentic work with a report back | Subagent |
+| External model or service: OCR, transcription, image generation, batch classification | Tool (an MCP server or a bundled script) |
+
+A subagent is an agent: it runs an agent loop with tools, in its own context, and returns a report. Work that only needs a single inference call is faster as a tool. The fastest path for "answer these ten questions true or false" is one structured call to a decision model, not a subagent spawn.
+
+## What the format does not define
+
+- **File locations.** Each harness discovers subagent files in its own directories.
+- **Model selection.** There is no model field. Harnesses derive model and effort from `complexity` and their own policy. Harnesses that route across providers can store routing configuration in `metadata`.
+- **Nesting depth and parallelism.** Harnesses decide whether subagents can spawn subagents, and how many run at once.
+- **References and bundled files.** The body is self-contained. Large, conditional knowledge belongs in skills, which subagents can use where the harness supports them.
+- **Inter-model protocols.** Direct model-to-model communication is the territory of protocols like MCP and A2A, not of this file format.

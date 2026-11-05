@@ -7,3 +7,6 @@
 
 # Dependencies
 node_modules/
+
+# ZCode session artifacts
+.zcode/

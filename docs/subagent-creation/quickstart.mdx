@@ -10,7 +10,7 @@ In this tutorial, you'll create a subagent that explores a codebase and reports 
 - [Claude Code](https://code.claude.com/docs/en/quickstart) installed
 
 <Note>
-This tutorial uses Claude Code, but Harness Subagents is an open format. The same file works in any harness with file-based subagents, including GitHub Copilot, VS Code, Gemini CLI and OpenCode — each harness discovers subagent files in its own directory and maps the fields it knows.
+This tutorial uses Claude Code, but Harness Subagents is an open format. The same file often works, with small adjustments (file extension, name rules, tool names), in harnesses with file-based Markdown subagents such as GitHub Copilot, VS Code, Gemini CLI and OpenCode. Each harness discovers subagent files in its own directory and maps the fields it knows.
 </Note>
 
 ## Create the subagent
@@ -21,7 +21,7 @@ Claude Code discovers subagents in `.claude/agents/`. Create `.claude/agents/rep
 ---
 name: repo-explorer
 description: Maps how a codebase implements a feature or concept. Use when the parent needs to know where and how something works before planning or editing code. Read-only.
-complexity: low
+complexity: routine
 tools: [Read, Grep, Glob]
 ---
 
@@ -50,7 +50,7 @@ That's it — one file. Here's what each part does:
 
 - **`name`** — A short identifier for the subagent. Must match the file name.
 - **`description`** — Tells the parent when to delegate. This is how the parent decides whether to use the subagent.
-- **`complexity`** — A hint for the harness to pick a model and reasoning effort. `low` fits bounded, single-focus work.
+- **`complexity`** — A hint for the harness to pick a model and reasoning effort. `routine` fits a prescribed, bounded procedure.
 - **`tools`** — Restricts the subagent to read-only tools, matching its scope.
 - **The body** — Instructions the harness gives the subagent as its system prompt. Here, they define the work and the report shape the parent receives.
 

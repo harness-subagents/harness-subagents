@@ -20,8 +20,9 @@ One nuance: parents typically delegate tasks that are worth isolating — noisy 
 
 - **Use imperative phrasing.** Frame it as an instruction to the parent: "Use when..." rather than "This subagent does...". The parent is deciding whether to act, so tell it when to act.
 - **State the deliverable.** Describe what comes back: "reports pass/fail results grouped by root cause", not "works with tests". The parent weighs what it gets against what it sends.
-- **Declare the boundaries.** A "Do not use for..." clause is the cheapest way to prevent mis-delegation: "Do not use for writing new tests or fixing test failures." Boundary keywords work like trigger keywords — parents match against both.
+- **Declare the boundaries.** A "Do not use for..." clause is the cheapest way to prevent mis-delegation: "Do not use for writing new tests or fixing test failures." 
 - **Focus on the task, not the implementation.** Describe the work the parent wants done, not the subagent's internal mechanics.
+- **Signal scope and risk.** The description also tunes `complexity`: a narrow, well-bounded task and an open-ended one can share a tier yet need different models. Say which this is.
 - **Keep it concise.** A few sentences is usually right. The [specification](/specification#description-field) enforces a hard limit of 1024 characters.
 
 <Card>
@@ -88,12 +89,13 @@ QUERIES_FILE="${1:?Usage: $0 <queries.json>}"
 SUBAGENT_NAME="test-runner"
 RUNS=3
 
-# This example checks Claude Code JSON output for a Task tool call that
-# spawned the named subagent. Replace with detection logic for your harness.
+# This example checks Claude Code's stream-json event output (the plain
+# json format has no tool calls) for an Agent (formerly Task) tool call
+# that spawned the named subagent. Replace with detection logic for your harness.
 # Should return 0 (success) if the subagent was delegated to, 1 otherwise.
 check_delegated() {
   local query="$1"
-  claude -p "$query" --output-format json 2>/dev/null \
+  claude -p "$query" --output-format stream-json --verbose 2>/dev/null \
     | jq -e --arg name "$SUBAGENT_NAME" \
       'any(.. | .subagent_type?; . == $name)' \
     > /dev/null 2>&1

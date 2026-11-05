@@ -46,7 +46,7 @@ find the flags registry before tracing any feature.
 
 ### Keep it lean
 
-Everything in the body is paid on every run, inside the subagent's own context window. A long body leaves less room for the actual work. Aim for a focused file — several hundred lines at most — and cut anything that fails the question: "Would the subagent get this wrong without this instruction?"
+Everything in the body is paid on every run, inside the subagent's own context window. A long body leaves less room for the actual work. The Agent Skills guidance of under 500 lines for `SKILL.md` is a sensible ceiling for the same reason. Aim for a focused file and cut anything that fails the question: "Would the subagent get this wrong without this instruction?"
 
 ## Design for no human in the loop
 
@@ -58,7 +58,7 @@ Subagents are not steered, paused or corrected mid-run. There is no user to ask.
 
 ### Match specificity to fragility
 
-**Give the subagent freedom** when multiple approaches are valid. Explaining *why* outperforms rigid directives — a subagent that understands the purpose makes better context-dependent decisions:
+**Give the subagent freedom** when multiple approaches are valid. Explaining *why* can be more effective than rigid directives — a subagent that understands the purpose makes better context-dependent decisions:
 
 ```markdown
 ## Review focus
@@ -90,26 +90,28 @@ When several tools or approaches could work, pick a default and mention alternat
 
 ## Restrict tools to the role
 
-The `tools` field is a least-privilege control. A read-only reviewer should not have editing or terminal tools; a test-runner should not have network access. Restricting tools also sharpens behavior: a subagent that cannot edit files stops considering edits.
+The `tools` field is a least-privilege control. A read-only reviewer should not have editing or terminal tools; a test-runner should not have network access. Restricting tools also keeps the subagent's tool choices narrow.
 
 The harness enforces tool access. Instructions in the body are not a permission boundary — a body that says "do not edit files" does not prevent edits. Put real boundaries in `tools`.
 
 ## Choosing complexity
 
-The `complexity` field is a suggestion to the harness about how much model capability and reasoning effort the work needs:
+The `complexity` field names the kind of work the subagent does. The harness maps it to a model and reasoning effort:
 
 | Tier | Suited for | Example |
 |------|------------|---------|
-| `minimal` | One fully specified step; the spec decides every choice | "Find every TODO comment and list them" |
-| `low` | A prescribed procedure with light branching and local reads | Map how a feature is implemented; run the test suite and report |
-| `normal` | Mixed evidence to weigh, prose quality that matters, or a plan that already decides the approach | Implement a small feature; review a change; summarize a contested design thread |
-| `high` | Diagnosis, unfamiliar code, trade-offs, or open-ended work with no ready procedure | Security review; deep debugging; synthesis across sources |
-| `max` | A live or irreversible state change, long-horizon orchestration, or design others will build on | Competitive research sweep; a schema migration under live traffic |
+| `mundane` | One fully specified step; the spec decides every choice | "Find every TODO comment and list them" |
+| `routine` | A prescribed procedure with light branching and local reads | Run the test suite and report; map how a feature is implemented |
+| `interpreting` | Mixed evidence to weigh, prose quality that matters, or a plan that already decides the approach | Implement a small feature; review a change; summarize a contested design thread |
+| `judgment` | Diagnosis, unfamiliar code, trade-offs, or open-ended work with no ready procedure | Security review; deep debugging; synthesis across sources |
+| `critical` | A live or irreversible state change, long-horizon orchestration, or design others will build on | Competitive research sweep; a schema migration under live traffic |
 
-Two rules of thumb:
+Complexity and the description work in tandem. The tier is the big picture; the description fine-tunes it. Two `interpreting` subagents can run differently: one with a narrow, well-bounded description may get a quick, light-effort setup, while one with an open-ended description may get a more capable model. Say in the description how wide, risky or ambiguous the work is.
 
-- **Pick the lowest tier that can do the job.** Delegation multiplies cost: every subagent pays for its own context. The harness may run `minimal` work on a small, fast model — a real saving only if the tier is honest.
-- **When in doubt, choose `normal`** and let the harness adapt. Complexity is a suggestion, not gospel; harnesses map it to their own models and effort levels and may override it per task.
+Rules of thumb:
+
+- **Pick the lowest tier that can do the job.** Delegation multiplies cost: every subagent pays for its own context. The harness may run `mundane` work on a small, fast model, a real saving only if the tier is honest.
+- **When unsure, omit the field.** The harness then reads the whole file and decides by judgment. Complexity is a suggestion, not gospel; harnesses may override it per task.
 
 ## When not to use a subagent
 

@@ -40,3 +40,9 @@ published routes—not source text alone—as part of documentation correctness.
 `CONTRIBUTING.md` owns current contribution scope, routing, and AI-assistance
 disclosure policy. Read and follow it before beginning work intended for
 upstream submission or participating in an issue, Discussion, or pull request.
+
+## References
+
+`references/INDEX.md` lists distilled external sources (agentskills.io, harness docs,
+vendor guidance) with trust tiers. Assert documentation claims against it before
+refetching, and extend it when you add a source.

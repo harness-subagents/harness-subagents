@@ -13,7 +13,7 @@ repo-explorer.md
 └── Body            # Instructions the harness uses as the subagent's system prompt
 ```
 
-The file name (without the `.md` extension) identifies the subagent. Harnesses should discover subagent files in the harness-neutral location first, cascading like skills do: user level (`~/.agents/agents/`), then project level (`.agents/agents/`). Harness-specific directories (such as `.claude/agents/`) are scanned in addition — see [adding subagents support](/harness-implementation/adding-subagents-support) for the conventions existing harnesses use.
+The file name (without the `.md` extension) identifies the subagent. This format proposes a harness-neutral location that harnesses should discover first, modeled on the `.agents/skills/` convention: user level (`~/.agents/agents/`), then project level (`.agents/agents/`). It is a proposal of this format, not an established convention yet. Harness-specific directories (such as `.claude/agents/`) are scanned in addition — see [adding subagents support](/harness-implementation/adding-subagents-support) for the conventions existing harnesses use.
 
 A subagent file is self-contained. It does not bundle scripts, references or other supporting files.
 
@@ -23,8 +23,8 @@ A subagent file is self-contained. It does not bundle scripts, references or oth
 |-------|----------|-------------|
 | `name` | Yes | Max 64 characters. Lowercase letters, numbers, and hyphens only. Must not start or end with a hyphen. |
 | `description` | Yes | Max 1024 characters. Non-empty. Describes what the subagent does and when a parent should delegate to it. |
-| `complexity` | No | One of `minimal`, `low`, `normal`, `high`, `max`. Defaults to `normal`. |
-| `tools` | No | Whitelist of tool names, or a boolean: `true` all, `false` none. Empty or absent inherits from the parent. (Experimental) |
+| `complexity` | No | One of `mundane`, `routine`, `interpreting`, `judgment`, `critical`. When omitted, the harness judges from the whole file. |
+| `tools` | No | Whitelist of tool names, or a boolean: `true` all, `false` none. An empty array means `false`. Absent inherits from the parent. (Experimental) |
 | `metadata` | No | Arbitrary key-value mapping for additional metadata (a map from string keys to string values). |
 
 <Card>
@@ -43,7 +43,7 @@ description: Maps how a codebase implements a feature. Use before planning chang
 ---
 name: security-reviewer
 description: Reviews code changes for security vulnerabilities. Use when a change touches authentication, input handling or dependencies.
-complexity: high
+complexity: judgment
 tools: [Read, Grep, Glob]
 metadata:
   author: example-org
@@ -109,26 +109,34 @@ description: Helps with tests.
 #### `complexity` field
 
 The optional `complexity` field:
-- Must be one of `minimal`, `low`, `normal`, `high` or `max` if provided
-- Defaults to `normal` when omitted
-- Suggests how much model capability and reasoning effort the subagent's work needs
+- Must be one of `mundane`, `routine`, `interpreting`, `judgment` or `critical` if provided
+- States the big picture: what kind of work the subagent does, not which model runs it
+- When omitted, the harness reads the whole file (description and body) and decides for itself
 
-The five tiers, from cheapest to strongest:
+The five tiers name the kind of work, from least to most demanding:
 
 | Tier | Suited for | Example |
 |------|------------|---------|
-| `minimal` | One fully specified step, where the spec decides every choice. Usually the cheapest tier, minimal effort. | "Find every TODO comment and list them" |
-| `low` | A prescribed procedure with light branching and local reads. Usually a cheap tier, low effort. | "Run the test suite and report pass/fail grouped by root cause" |
-| `normal` | Mixed evidence to weigh, prose quality that matters, or a plan that already decides the approach. Usually a mid tier, moderate effort. | "Summarize this RFC thread and call out the contested trade-offs" |
-| `high` | Diagnosis, unfamiliar code, trade-offs, or open-ended work with no ready procedure. Usually a strong tier, moderate to high effort. | "Find why checkout intermittently double-charges; no reproducer exists" |
-| `max` | A live or irreversible state change, long-horizon orchestration, or design others will build on. Usually the strongest tier, moderate to maximum effort; many instances still need less. | "Plan the billing-schema migration under live traffic" |
+| `mundane` | One fully specified step, where the spec decides every choice. | "Find every TODO comment and list them" |
+| `routine` | A prescribed procedure with light branching and local reads. | "Run the test suite and report pass/fail grouped by root cause" |
+| `interpreting` | Mixed evidence to weigh, prose quality that matters, or a plan that already decides the approach. | "Summarize this RFC thread and call out the contested trade-offs" |
+| `judgment` | Diagnosis, unfamiliar code, trade-offs, or open-ended work with no ready procedure. | "Find why checkout intermittently double-charges; no reproducer exists" |
+| `critical` | A live or irreversible state change, long-horizon orchestration, or design others will build on. | "Plan the billing-schema migration under live traffic" |
 
-Complexity is a suggestion, not a requirement. Harnesses adapt it to their own APIs: they decide which model and which reasoning effort fit the tier, and they may override the suggestion per task based on their model lineup, availability or cost policy. Two harnesses may run the same `high` subagent on different models. That is the intent.
+The names describe the work, not a model size or an effort setting. A harness maps each tier to the models and reasoning effort it has; the same tier may land on different models in different harnesses.
+
+**Complexity and description work in tandem.** `complexity` sets the tier. The `description` adjusts within it: the scope, risk and ambiguity it describes tell the harness how far up or down the tier to lean. Two `interpreting` subagents can end up differently: a narrow, well-bounded one can run on a quick, light-effort setup, while an open-ended one can need a more capable model with more effort. Write the description with that reading in mind.
+
+When `complexity` is omitted, the harness reads the entire file and picks the model and effort by judgment, using the same signals.
+
+Complexity is a suggestion, not a requirement. Harnesses may override it per task based on their model lineup, availability or cost policy.
+
+If the model a harness selects is not available, the harness should ask the user whether to continue or to select another model. The default is to inherit the parent's model. How and whether the harness asks depends on the harness.
 
 <Card>
 **Example:**
 ```yaml
-complexity: low
+complexity: routine
 ```
 </Card>
 
@@ -136,7 +144,8 @@ complexity: low
 
 The optional `tools` field:
 - An array of tool names acting as a whitelist, or a boolean: `true` means all tools, `false` means none
-- When the field is empty or absent, the subagent inherits the parent's tools
+- When the field is absent, the subagent inherits the parent's tools
+- An empty array (`[]`) means the same as `false`: no tools
 - Tool names are harness-specific
 - Experimental. Support for this field may vary between harness implementations
 
@@ -186,7 +195,7 @@ Recommended sections:
 - Constraints: boundaries that apply to every run, such as read-only scope
 - Deliverable expectations: what to report back and in what shape
 
-Everything in the body is paid on every run, inside the subagent's own context window. A long body leaves less room for the work. Keep it focused; several hundred lines at most.
+Everything in the body is paid on every run, inside the subagent's own context window. A long body leaves less room for the work. Keep it focused. The Agent Skills guidance of under 500 lines for `SKILL.md` is a sensible ceiling for the same reason.
 
 ## Discovery and sync
 
@@ -265,7 +274,7 @@ A subagent is an agent: it runs an agent loop with tools, in its own context, an
 
 - **File locations.** The `.agents/agents/` cascade is the recommended default; beyond it, each harness discovers subagent files wherever it fits its architecture.
 - **Sync mechanics.** When a harness syncs, how it persists the catalog, and where enable/disable is configured are harness decisions. The format defines what a sync must respect — layered sources, per-source reconciliation, precedence — not how or when it runs.
-- **Model selection.** There is no model field. Harnesses derive model and effort from `complexity` and their own policy. Harnesses that route across providers can store routing configuration in `metadata`.
+- **Model selection.** There is no model field. Harnesses derive model and effort from `complexity`, the description and their own policy, and decide what happens when the chosen model is unavailable. Harnesses that route across providers can store routing configuration in `metadata`.
 - **Nesting depth and parallelism.** Harnesses decide whether subagents can spawn subagents, and how many run at once.
 - **References and bundled files.** The body is self-contained. Large, conditional knowledge belongs in skills, which subagents can use where the harness supports them.
-- **Inter-model protocols.** Direct model-to-model communication is the territory of protocols like MCP and A2A, not of this file format.
+- **Agent-to-agent protocols.** Communication between independent agents is the territory of protocols like A2A, not of this file format. MCP connects agents to tools and data.

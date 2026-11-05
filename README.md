@@ -12,7 +12,7 @@ At its core, a subagent is a single Markdown file. This file includes metadata (
 ---
 name: repo-explorer
 description: Maps how a codebase implements a feature. Use before planning changes.
-complexity: low
+complexity: routine
 ---
 
 You explore a codebase and report structure. You do not edit files.
@@ -44,7 +44,7 @@ The subagent works without directly steering, pausing or questions to the user. 
 
 ## Where can I use Harness Subagents?
 
-Subagent support is spreading fast across agentic tools. File-based subagent formats exist today in Claude Code, GitHub Copilot, VS Code, Gemini CLI, OpenCode, OpenAI Codex and Amp, among others. This format mirrors their common shape, so a subagent written once maps naturally onto each of them, leaving room for custom adaptations for their model catalog and thinking effort.
+Subagent support is spreading fast across agentic tools. File-based subagent formats exist today in Claude Code, GitHub Copilot, VS Code, Gemini CLI, OpenCode and OpenAI Codex (which uses TOML files), among others. This format mirrors their common shape, so a subagent written once maps onto each of them with small adjustments, leaving room for custom adaptations for their model catalog and thinking effort.
 
 ## Open development
 

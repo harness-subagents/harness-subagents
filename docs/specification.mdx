@@ -23,7 +23,7 @@ A subagent file is self-contained. It does not bundle scripts, references or oth
 |-------|----------|-------------|
 | `name` | Yes | Max 64 characters. Lowercase letters, numbers, and hyphens only. Must not start or end with a hyphen. |
 | `description` | Yes | Max 1024 characters. Non-empty. Describes what the subagent does and when a parent should delegate to it. |
-| `complexity` | No | One of `mundane`, `routine`, `interpreting`, `judgment`, `critical`. Defaults to `interpreting`. |
+| `complexity` | No | One of `minimal`, `low`, `normal`, `high`, `max`. Defaults to `normal`. |
 | `tools` | No | Whitelist of tool names, or a boolean: `true` all, `false` none. Empty or absent inherits from the parent. (Experimental) |
 | `metadata` | No | Arbitrary key-value mapping for additional metadata (a map from string keys to string values). |
 
@@ -43,7 +43,7 @@ description: Maps how a codebase implements a feature. Use before planning chang
 ---
 name: security-reviewer
 description: Reviews code changes for security vulnerabilities. Use when a change touches authentication, input handling or dependencies.
-complexity: judgment
+complexity: high
 tools: [Read, Grep, Glob]
 metadata:
   author: example-org
@@ -109,26 +109,26 @@ description: Helps with tests.
 #### `complexity` field
 
 The optional `complexity` field:
-- Must be one of `mundane`, `routine`, `interpreting`, `judgment` or `critical` if provided
-- Defaults to `interpreting` when omitted
+- Must be one of `minimal`, `low`, `normal`, `high` or `max` if provided
+- Defaults to `normal` when omitted
 - Suggests how much model capability and reasoning effort the subagent's work needs
 
 The five tiers, from cheapest to strongest:
 
 | Tier | Suited for | Example |
 |------|------------|---------|
-| `mundane` | One fully specified step, where the spec decides every choice. Usually the cheapest tier, minimal effort. | "Find every TODO comment and list them" |
-| `routine` | A prescribed procedure with light branching and local reads. Usually a cheap tier, low effort. | "Run the test suite and report pass/fail grouped by root cause" |
-| `interpreting` | Mixed evidence to weigh, prose quality that matters, or a plan that already decides the approach. Usually a mid tier, moderate effort. | "Summarize this RFC thread and call out the contested trade-offs" |
-| `judgment` | Diagnosis, unfamiliar code, trade-offs, or open-ended work with no ready procedure. Usually a strong tier, moderate to high effort. | "Find why checkout intermittently double-charges; no reproducer exists" |
-| `critical` | A live or irreversible state change, long-horizon orchestration, or design others will build on. Usually the strongest tier, moderate to maximum effort; many instances still need less. | "Plan the billing-schema migration under live traffic" |
+| `minimal` | One fully specified step, where the spec decides every choice. Usually the cheapest tier, minimal effort. | "Find every TODO comment and list them" |
+| `low` | A prescribed procedure with light branching and local reads. Usually a cheap tier, low effort. | "Run the test suite and report pass/fail grouped by root cause" |
+| `normal` | Mixed evidence to weigh, prose quality that matters, or a plan that already decides the approach. Usually a mid tier, moderate effort. | "Summarize this RFC thread and call out the contested trade-offs" |
+| `high` | Diagnosis, unfamiliar code, trade-offs, or open-ended work with no ready procedure. Usually a strong tier, moderate to high effort. | "Find why checkout intermittently double-charges; no reproducer exists" |
+| `max` | A live or irreversible state change, long-horizon orchestration, or design others will build on. Usually the strongest tier, moderate to maximum effort; many instances still need less. | "Plan the billing-schema migration under live traffic" |
 
-Complexity is a suggestion, not a requirement. Harnesses adapt it to their own APIs: they decide which model and which reasoning effort fit the tier, and they may override the suggestion per task based on their model lineup, availability or cost policy. Two harnesses may run the same `judgment` subagent on different models. That is the intent.
+Complexity is a suggestion, not a requirement. Harnesses adapt it to their own APIs: they decide which model and which reasoning effort fit the tier, and they may override the suggestion per task based on their model lineup, availability or cost policy. Two harnesses may run the same `high` subagent on different models. That is the intent.
 
 <Card>
 **Example:**
 ```yaml
-complexity: routine
+complexity: low
 ```
 </Card>
 

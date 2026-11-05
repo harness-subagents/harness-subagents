@@ -21,7 +21,7 @@ Claude Code discovers subagents in `.claude/agents/`. Create `.claude/agents/rep
 ---
 name: repo-explorer
 description: Maps how a codebase implements a feature or concept. Use when the parent needs to know where and how something works before planning or editing code. Read-only.
-complexity: routine
+complexity: low
 tools: [Read, Grep, Glob]
 ---
 
@@ -50,7 +50,7 @@ That's it — one file. Here's what each part does:
 
 - **`name`** — A short identifier for the subagent. Must match the file name.
 - **`description`** — Tells the parent when to delegate. This is how the parent decides whether to use the subagent.
-- **`complexity`** — A hint for the harness to pick a model and reasoning effort. `routine` fits bounded, single-focus work.
+- **`complexity`** — A hint for the harness to pick a model and reasoning effort. `low` fits bounded, single-focus work.
 - **`tools`** — Restricts the subagent to read-only tools, matching its scope.
 - **The body** — Instructions the harness gives the subagent as its system prompt. Here, they define the work and the report shape the parent receives.
 

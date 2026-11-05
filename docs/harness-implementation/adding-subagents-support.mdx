@@ -90,7 +90,7 @@ A subagent file has two parts: YAML frontmatter between `---` delimiters, and a 
 Warn on issues but still load the subagent when possible:
 
 - `name` doesn't match the file name → warn, load anyway
-- `complexity` is missing or outside the enum → warn, treat as `interpreting`
+- `complexity` is missing or outside the enum → warn, treat as `normal`
 - `tools` is neither a boolean nor an array of names → warn, treat as inherit
 - Unknown frontmatter fields → ignore (or keep them if your harness maps them; this is what `metadata` is for)
 - `description` is missing or empty → skip the subagent (a description is essential for delegation), log the error
@@ -122,13 +122,13 @@ Map the five tiers to your model lineup and effort controls:
 
 | Tier | Model tendency | Effort tendency | Example mappings |
 |------|----------------|-----------------|------------------|
-| `mundane` | Smallest, fastest model | None or lowest | OpenAI `reasoning.effort: none`/`minimal`; a small local model |
-| `routine` | Fast model | Low | OpenAI `reasoning.effort: low`; Claude `effort: low` |
-| `interpreting` | Default model | Medium (the common default) | OpenAI `reasoning.effort: medium`; Claude `effort: medium` |
-| `judgment` | Strong model | High | OpenAI `reasoning.effort: high`; Claude `effort: high` |
-| `critical` | Strongest available | Maximum | OpenAI `reasoning.effort: xhigh`; Claude `effort: max` |
+| `minimal` | Smallest, fastest model | None or lowest | OpenAI `reasoning.effort: none`/`minimal`; a small local model |
+| `low` | Fast model | Low | OpenAI `reasoning.effort: low`; Claude `effort: low` |
+| `normal` | Default model | Medium (the common default) | OpenAI `reasoning.effort: medium`; Claude `effort: medium` |
+| `high` | Strong model | High | OpenAI `reasoning.effort: high`; Claude `effort: high` |
+| `max` | Strongest available | Maximum | OpenAI `reasoning.effort: xhigh`; Claude `effort: max` |
 
-The mapping is yours to make. Your model lineup, availability, latency budget and cost policy all belong in the decision, and the mapping can adapt per task: a harness may run an `interpreting` subagent on a stronger model when the delegation involves mutating state, or downgrade when usage caps are near. Complexity is a hint you consume, not a contract you owe the file.
+The mapping is yours to make. Your model lineup, availability, latency budget and cost policy all belong in the decision, and the mapping can adapt per task: a harness may run a `normal` subagent on a stronger model when the delegation involves mutating state, or downgrade when usage caps are near. Complexity is a hint you consume, not a contract you owe the file.
 
 <Note>
 Model identifiers are deliberately absent from the format. They don't port across harnesses, and they rot quickly. If your harness routes subagents across providers, expose that configuration through `metadata` keys of your own naming — the field exists for exactly this.

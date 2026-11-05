@@ -1,6 +1,6 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
+  "theme": "almond",
   "name": "Harness Subagents",
   "colors": {
     "primary": "#7f7f7f",
@@ -47,5 +47,9 @@
       "cursor",
       "vscode"
     ]
+  },
+  "description": "Specification and documentation for Harness sub-agents",
+  "background": {
+    "decoration": "grid"
   }
 }

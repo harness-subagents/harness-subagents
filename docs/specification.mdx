@@ -13,7 +13,7 @@ repo-explorer.md
 └── Body            # Instructions the harness uses as the subagent's system prompt
 ```
 
-The file name (without the `.md` extension) identifies the subagent. Where subagent files live is up to each harness — see [adding subagents support](/harness-implementation/adding-subagents-support) for the conventions existing harnesses use.
+The file name (without the `.md` extension) identifies the subagent. Harnesses should discover subagent files in the harness-neutral location first, cascading like skills do: user level (`~/.agents/agents/`), then project level (`.agents/agents/`). Harness-specific directories (such as `.claude/agents/`) are scanned in addition — see [adding subagents support](/harness-implementation/adding-subagents-support) for the conventions existing harnesses use.
 
 A subagent file is self-contained. It does not bundle scripts, references or other supporting files.
 
@@ -176,11 +176,23 @@ Recommended sections:
 
 Everything in the body is paid on every run, inside the subagent's own context window. A long body leaves less room for the work. Keep it focused; several hundred lines at most.
 
+## Discovery and sync
+
+Subagent files come from layered sources: the user level, the project level, and the subagents a harness provides itself. Harnesses persist what they load, attributed by source, keeping user and project subagents separate from their own.
+
+When subagents share a `name`, the more specific source wins: project overrides user, and both override harness-provided subagents.
+
+Keeping the catalog current is a sync, source by source. Each source is reconciled so the catalog mirrors it, and nothing else changes: a project providing A and B alongside a harness providing C yields a catalog of A, B, C; when the project changes and provides A and D, a sync makes the catalog A, C, D — B leaves with its source, C is untouched. Harness updates reconcile only the harness-provided layer and never rewrite user or project entries.
+
+Users and projects can disable or enable any subagent, including bundled ones. Harnesses should show which subagents are overridden, and by what.
+
+A harness may track changes in `.agents/agents/` and sync automatically. When it does not, it should tell the user when a sync is due: knowing an update is required is useful even when the update is applied manually.
+
 ## Lifecycle
 
 A subagent runs through four stages.
 
-1. **Discovery**: The harness loads each subagent's `name` and `description` at startup. This is all the parent knows about the subagent when deciding whether to delegate.
+1. **Discovery**: The harness syncs its catalog and loads each subagent's `name` and `description` at startup. This is all the parent knows about the subagent when deciding whether to delegate.
 
 2. **Delegation**: The parent sends a task to the subagent. Effective tasks include an objective, the expected deliverable, guidance on tools and sources to use, and clear task boundaries.
 
@@ -239,7 +251,8 @@ A subagent is an agent: it runs an agent loop with tools, in its own context, an
 
 ## What the format does not define
 
-- **File locations.** Each harness discovers subagent files in its own directories.
+- **File locations.** The `.agents/agents/` cascade is the recommended default; beyond it, each harness discovers subagent files wherever it fits its architecture.
+- **Sync mechanics.** When a harness syncs, how it persists the catalog, and where enable/disable is configured are harness decisions. The format defines what a sync must respect — layered sources, per-source reconciliation, precedence — not how or when it runs.
 - **Model selection.** There is no model field. Harnesses derive model and effort from `complexity` and their own policy. Harnesses that route across providers can store routing configuration in `metadata`.
 - **Nesting depth and parallelism.** Harnesses decide whether subagents can spawn subagents, and how many run at once.
 - **References and bundled files.** The body is self-contained. Large, conditional knowledge belongs in skills, which subagents can use where the harness supports them.

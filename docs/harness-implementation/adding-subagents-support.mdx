@@ -122,11 +122,11 @@ Map the five tiers to your model lineup and effort controls:
 
 | Tier | Model tendency | Effort tendency | Example mappings |
 |------|----------------|-----------------|------------------|
-| `mundane` | Smallest, fastest model | None or lowest | OpenAI `reasoning.effort: minimal`/`low`; a small local model |
+| `mundane` | Smallest, fastest model | None or lowest | OpenAI `reasoning.effort: none`/`minimal`; a small local model |
 | `routine` | Fast model | Low | OpenAI `reasoning.effort: low`; Claude `effort: low` |
 | `interpreting` | Default model | Medium (the common default) | OpenAI `reasoning.effort: medium`; Claude `effort: medium` |
 | `judgment` | Strong model | High | OpenAI `reasoning.effort: high`; Claude `effort: high` |
-| `critical` | Strongest available | Maximum | OpenAI `reasoning.effort: max`/`xhigh`; Claude `effort: max` |
+| `critical` | Strongest available | Maximum | OpenAI `reasoning.effort: xhigh`; Claude `effort: max` |
 
 The mapping is yours to make. Your model lineup, availability, latency budget and cost policy all belong in the decision, and the mapping can adapt per task: a harness may run an `interpreting` subagent on a stronger model when the delegation involves mutating state, or downgrade when usage caps are near. Complexity is a hint you consume, not a contract you owe the file.
 

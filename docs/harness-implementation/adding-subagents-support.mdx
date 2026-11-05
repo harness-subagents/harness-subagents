@@ -90,7 +90,8 @@ A subagent file has two parts: YAML frontmatter between `---` delimiters, and a 
 Warn on issues but still load the subagent when possible:
 
 - `name` doesn't match the file name → warn, load anyway
-- `complexity` is missing or outside the enum → warn, treat as `normal`
+- `complexity` is missing or outside the enum → warn, treat as `interpreting`
+- `tools` is neither a boolean nor an array of names → warn, treat as inherit
 - Unknown frontmatter fields → ignore (or keep them if your harness maps them; this is what `metadata` is for)
 - `description` is missing or empty → skip the subagent (a description is essential for delegation), log the error
 - YAML is completely unparseable → skip the subagent, log the error
@@ -107,7 +108,7 @@ At minimum, each subagent record needs:
 | `description` | From frontmatter |
 | `complexity` | From frontmatter, defaulted |
 | `body` | The system prompt text |
-| `tools` | From frontmatter, defaulted to inherit |
+| `tools` | From frontmatter — boolean or whitelist; empty inherits |
 
 Read the body at discovery time or at spawn time. Reading at spawn time picks up edits made between delegations.
 
@@ -117,17 +118,17 @@ Once the files are parsed, adapting each subagent into your harness is your job,
 
 ### Mapping complexity to model and effort
 
-Map the five levels to your model lineup and effort controls:
+Map the five tiers to your model lineup and effort controls:
 
-| Level | Model tendency | Effort tendency | Example mappings |
-|-------|----------------|-----------------|------------------|
-| `minimal` | Smallest, fastest model | None or lowest | OpenAI `reasoning.effort: minimal`/`low`; a small local model |
-| `low` | Fast model | Low | OpenAI `reasoning.effort: low`; Claude `effort: low` |
-| `normal` | Default model | Medium (the common default) | OpenAI `reasoning.effort: medium`; Claude `effort: medium` |
-| `high` | Strong model | High | OpenAI `reasoning.effort: high`; Claude `effort: high` |
-| `max` | Strongest available | Maximum | OpenAI `reasoning.effort: max`/`xhigh`; Claude `effort: max` |
+| Tier | Model tendency | Effort tendency | Example mappings |
+|------|----------------|-----------------|------------------|
+| `mundane` | Smallest, fastest model | None or lowest | OpenAI `reasoning.effort: minimal`/`low`; a small local model |
+| `routine` | Fast model | Low | OpenAI `reasoning.effort: low`; Claude `effort: low` |
+| `interpreting` | Default model | Medium (the common default) | OpenAI `reasoning.effort: medium`; Claude `effort: medium` |
+| `judgment` | Strong model | High | OpenAI `reasoning.effort: high`; Claude `effort: high` |
+| `critical` | Strongest available | Maximum | OpenAI `reasoning.effort: max`/`xhigh`; Claude `effort: max` |
 
-The mapping is yours to make. Your model lineup, availability, latency budget and cost policy all belong in the decision, and the mapping can adapt per task: a harness may run a `normal` subagent on a stronger model when the delegation involves mutating state, or downgrade when usage caps are near. Complexity is a hint you consume, not a contract you owe the file.
+The mapping is yours to make. Your model lineup, availability, latency budget and cost policy all belong in the decision, and the mapping can adapt per task: a harness may run an `interpreting` subagent on a stronger model when the delegation involves mutating state, or downgrade when usage caps are near. Complexity is a hint you consume, not a contract you owe the file.
 
 <Note>
 Model identifiers are deliberately absent from the format. They don't port across harnesses, and they rot quickly. If your harness routes subagents across providers, expose that configuration through `metadata` keys of your own naming — the field exists for exactly this.
@@ -186,7 +187,7 @@ Give the new session:
 
 - **System prompt**: the subagent's body. Nothing else — not the parent's system prompt, not the conversation. Basic environment details (working directory, platform) are fine and often necessary.
 - **Task**: the delegation message from the parent.
-- **Tools**: the subagent's `tools` field intersected with what your harness offers; inherit-all when the field is absent. Enforce the restriction harness-side — the body saying "don't edit files" is not enforcement.
+- **Tools**: resolved from the subagent's `tools` field — `true` grants all tools, `false` none, an array whitelists those names against what your harness offers (warn on unknown names); empty or absent inherits the parent's tools. Enforce the restriction harness-side — the body saying "don't edit files" is not enforcement.
 - **An isolated context**: the subagent sees nothing from the parent beyond the task. That isolation is the point.
 
 ### Enforce the no-human rule

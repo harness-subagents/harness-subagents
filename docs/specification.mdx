@@ -23,8 +23,8 @@ A subagent file is self-contained. It does not bundle scripts, references or oth
 |-------|----------|-------------|
 | `name` | Yes | Max 64 characters. Lowercase letters, numbers, and hyphens only. Must not start or end with a hyphen. |
 | `description` | Yes | Max 1024 characters. Non-empty. Describes what the subagent does and when a parent should delegate to it. |
-| `complexity` | No | One of `minimal`, `low`, `normal`, `high`, `max`. Defaults to `normal`. |
-| `tools` | No | Space-separated string of tools the subagent may use. (Experimental) |
+| `complexity` | No | One of `mundane`, `routine`, `interpreting`, `judgment`, `critical`. Defaults to `interpreting`. |
+| `tools` | No | Whitelist of tool names, or a boolean: `true` all, `false` none. Empty or absent inherits from the parent. (Experimental) |
 | `metadata` | No | Arbitrary key-value mapping for additional metadata (a map from string keys to string values). |
 
 <Card>
@@ -43,8 +43,8 @@ description: Maps how a codebase implements a feature. Use before planning chang
 ---
 name: security-reviewer
 description: Reviews code changes for security vulnerabilities. Use when a change touches authentication, input handling or dependencies.
-complexity: high
-tools: Read Grep Glob
+complexity: judgment
+tools: [Read, Grep, Glob]
 metadata:
   author: example-org
   version: "1.0"
@@ -109,40 +109,52 @@ description: Helps with tests.
 #### `complexity` field
 
 The optional `complexity` field:
-- Must be one of `minimal`, `low`, `normal`, `high` or `max` if provided
-- Defaults to `normal` when omitted
+- Must be one of `mundane`, `routine`, `interpreting`, `judgment` or `critical` if provided
+- Defaults to `interpreting` when omitted
 - Suggests how much model capability and reasoning effort the subagent's work needs
 
-| Level | Suited for |
-|-------|------------|
-| `minimal` | Retrieval, lookups, mechanical transforms. Little or no reasoning. |
-| `low` | Single-focus, bounded tasks: run a known procedure, simple fixes, format checks. |
-| `normal` | Standard agentic work: implementation, review, multi-step research. |
-| `high` | Complex reasoning: architecture, deep debugging, security review, synthesis across sources. |
-| `max` | The hardest tasks: long-horizon research, high-stakes analysis. Cost scales sharply. |
+The five tiers, from cheapest to strongest:
 
-Complexity is a suggestion, not a requirement. Harnesses adapt it to their own APIs: they decide which model and which reasoning effort fit the level, and they may override the suggestion per task based on their model lineup, availability or cost policy. Two harnesses may run the same `high` subagent on different models. That is the intent.
+| Tier | Suited for | Example |
+|------|------------|---------|
+| `mundane` | One fully specified step, where the spec decides every choice. Usually the cheapest tier, minimal effort. | "Find every TODO comment and list them" |
+| `routine` | A prescribed procedure with light branching and local reads. Usually a cheap tier, low effort. | "Run the test suite and report pass/fail grouped by root cause" |
+| `interpreting` | Mixed evidence to weigh, prose quality that matters, or a plan that already decides the approach. Usually a mid tier, moderate effort. | "Summarize this RFC thread and call out the contested trade-offs" |
+| `judgment` | Diagnosis, unfamiliar code, trade-offs, or open-ended work with no ready procedure. Usually a strong tier, moderate to high effort. | "Find why checkout intermittently double-charges; no reproducer exists" |
+| `critical` | A live or irreversible state change, long-horizon orchestration, or design others will build on. Usually the strongest tier, moderate to maximum effort; many instances still need less. | "Plan the billing-schema migration under live traffic" |
+
+Complexity is a suggestion, not a requirement. Harnesses adapt it to their own APIs: they decide which model and which reasoning effort fit the tier, and they may override the suggestion per task based on their model lineup, availability or cost policy. Two harnesses may run the same `judgment` subagent on different models. That is the intent.
 
 <Card>
 **Example:**
 ```yaml
-complexity: low
+complexity: routine
 ```
 </Card>
 
 #### `tools` field
 
 The optional `tools` field:
-- A space-separated string of tools the subagent may use
-- Tool names are harness-specific. Omitting the field means the subagent inherits whatever the harness gives it
+- An array of tool names acting as a whitelist, or a boolean: `true` means all tools, `false` means none
+- When the field is empty or absent, the subagent inherits the parent's tools
+- Tool names are harness-specific
 - Experimental. Support for this field may vary between harness implementations
 
 The harness enforces tool access. The body asking a subagent to "not edit files" is not a permission boundary — this field is.
 
 <Card>
-**Example:**
+**Examples:**
 ```yaml
-tools: Read Grep Glob
+# Whitelist: only these tools
+tools: [Read, Grep, Glob]
+```
+```yaml
+# All tools the harness offers
+tools: true
+```
+```yaml
+# No tools at all
+tools: false
 ```
 </Card>
 

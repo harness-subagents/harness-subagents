@@ -12,7 +12,7 @@ At its core, a subagent is a single Markdown file. This file includes metadata (
 ---
 name: repo-explorer
 description: Maps how a codebase implements a feature. Use before planning changes.
-complexity: low
+complexity: routine
 ---
 
 You explore a codebase and report structure. You do not edit files.

@@ -98,18 +98,18 @@ The harness enforces tool access. Instructions in the body are not a permission 
 
 The `complexity` field is a suggestion to the harness about how much model capability and reasoning effort the work needs:
 
-| Level | Suited for | Example |
-|-------|------------|---------|
-| `minimal` | Retrieval, lookups, mechanical transforms | "Find every TODO comment and list them" |
-| `low` | Single-focus, bounded tasks | Map how a feature is implemented; run the test suite and report |
-| `normal` | Standard agentic work | Implement a small feature; review a change |
-| `high` | Complex, multi-step reasoning | Security review; deep debugging; synthesis across sources |
-| `max` | The hardest, longest-horizon work | Competitive research sweep; high-stakes analysis |
+| Tier | Suited for | Example |
+|------|------------|---------|
+| `mundane` | One fully specified step; the spec decides every choice | "Find every TODO comment and list them" |
+| `routine` | A prescribed procedure with light branching and local reads | Map how a feature is implemented; run the test suite and report |
+| `interpreting` | Mixed evidence to weigh, prose quality that matters, or a plan that already decides the approach | Implement a small feature; review a change; summarize a contested design thread |
+| `judgment` | Diagnosis, unfamiliar code, trade-offs, or open-ended work with no ready procedure | Security review; deep debugging; synthesis across sources |
+| `critical` | A live or irreversible state change, long-horizon orchestration, or design others will build on | Competitive research sweep; a schema migration under live traffic |
 
 Two rules of thumb:
 
-- **Pick the lowest level that can do the job.** Delegation multiplies cost: every subagent pays for its own context. The harness may run `minimal` work on a small, fast model — a real saving only if the level is honest.
-- **When in doubt, choose `normal`** and let the harness adapt. Complexity is a suggestion, not gospel; harnesses map it to their own models and effort levels and may override it per task.
+- **Pick the lowest tier that can do the job.** Delegation multiplies cost: every subagent pays for its own context. The harness may run `mundane` work on a small, fast model — a real saving only if the tier is honest.
+- **When in doubt, choose `interpreting`** and let the harness adapt. Complexity is a suggestion, not gospel; harnesses map it to their own models and effort levels and may override it per task.
 
 ## When not to use a subagent
 

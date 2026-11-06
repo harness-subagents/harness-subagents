@@ -33,7 +33,7 @@ A parent agent's context is its most expensive resource. Subagents solve this by
 
 A subagent runs through a four-stage lifecycle:
 
-1. **Discovery**: At startup, the harness loads each subagent's name and description, just enough for the parent to know when delegation might help.
+1. **Discovery**: The harness reads each subagent file live and loads its name and description, just enough for the parent to know when delegation might help.
 
 2. **Delegation**: When a task matches a subagent's description, the parent delegates it with an objective, an expected deliverable and clear task boundaries.
 

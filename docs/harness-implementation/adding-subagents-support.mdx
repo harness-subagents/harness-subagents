@@ -4,7 +4,7 @@ sidebarTitle: "Adding subagents support"
 description: "A guide for adding Harness Subagents support to an AI agent harness."
 ---
 
-This guide walks through how to add subagents support to an AI agent harness. It covers the full lifecycle: discovering subagent files and syncing them into a catalog, adapting them into your harness, telling the parent agent about them, spawning the subagent when the parent delegates, and handling what comes back.
+This guide walks through how to add subagents support to an AI agent harness. It covers the full lifecycle: reading subagent files live, adapting them into your harness, telling the parent agent about them, spawning the subagent when the parent delegates, and handling what comes back.
 
 The core integration is the same regardless of your architecture. The implementation details vary based on two factors:
 
@@ -28,7 +28,7 @@ The isolation is the product. Search noise, long tool output and intermediate dr
 
 ## Step 1: Discover subagent files
 
-At session startup, find all available subagent files and load their metadata.
+Find all available subagent files and read their metadata. Do this each time you list or spawn subagents, not once at startup.
 
 ### Where to scan
 
@@ -56,18 +56,18 @@ Practical scanning rules:
 - Skip directories that won't contain subagents, such as `.git/` and `node_modules/`
 - Set reasonable bounds on depth and directory count
 
-### Sync the catalog
+### Read the files live
 
-Discovery is a sync, not a one-shot load. Persist what you load, attributed by source, and keep user and project subagents separate from the ones your harness provides. The catalog is the union of the layers; precedence decides which entry wins a shared `name`.
+Read the files; do not copy them. Do not install subagents into a store of your own, and do not cache what you read. The files are the source of truth. Keep user and project subagents separate from the ones your harness provides. The set of subagents is the union of the layers, and the cascade decides which entry wins a shared `name`.
 
-Sync each source independently, so the catalog mirrors what that source currently provides:
+Read each source independently, so the result reflects what that source provides now:
 
-- The project provides A and B; your harness provides C. The catalog is A, B, C.
-- The project changes and now provides A and D. After a sync, the catalog is A, C, D. B leaves with its source; C is untouched.
+- The project provides A and B; your harness provides C. The result is A, B, C.
+- The project changes and now provides A and D. On the next read, the result is A, C, D. B leaves with its source; C is untouched.
 
-Removal is scoped to the source that stopped providing the subagent — a sync never touches entries from other sources. A harness update reconciles only your bundled subagents and never rewrites user or project entries.
+A source that stops providing a subagent removes only that subagent. A harness update changes only your bundled subagents and never rewrites user or project files.
 
-Sync at startup at minimum. You may also track changes in `.agents/agents/` and sync automatically as files change; if you don't, tell the user when a sync is due. Knowing an update is required is useful even when it is applied manually.
+Read again whenever you list subagents for the parent and whenever you spawn one. Edits then take effect with no restart and no sync command. If reading every time is too slow, you may watch `.agents/agents/` for changes and refresh on change. Never serve an entry you know is stale.
 
 ### Trust considerations
 
@@ -98,9 +98,9 @@ Warn on issues but still load the subagent when possible:
 
 Record diagnostics so they can be surfaced to the user, but don't block loading on cosmetic issues.
 
-### What to store
+### What to keep from each read
 
-At minimum, each subagent record needs:
+At minimum, each parsed subagent needs:
 
 | Field | Description |
 |-------|-------------|
@@ -110,11 +110,11 @@ At minimum, each subagent record needs:
 | `body` | The system prompt text |
 | `tools` | From frontmatter — boolean or whitelist; `[]` is `false`, absent inherits |
 
-Read the body at discovery time or at spawn time. Reading at spawn time picks up edits made between delegations.
+Read the body at spawn time, so that edits made between delegations take effect.
 
 ## Step 3: Adapt the subagents into your harness
 
-Once the files are parsed, adapting each subagent into your harness is your job, not the file's. The `complexity` field suggests how much capability the work needs; your harness is responsible for finding the model and reasoning effort that match it, from your own model lineup and policy.
+Once the files are parsed, adapting each subagent into your harness is your job, not the file's. The `complexity` field suggests how much capability the work needs; your harness is responsible for finding the model and reasoning effort that match it, from your own model lineup and policy. Set a default model for each subagent yourself. No install step is needed, and the file does not have to name a model.
 
 ### Mapping complexity to model and effort
 
@@ -132,9 +132,19 @@ Read the description together with the tier. The tier is the big picture; the de
 
 When `complexity` is missing, do not assume a tier. Read the entire file, description and body, and choose the model and effort by judgment.
 
-If the chosen model is not available (retired, not licensed, over quota), ask the user whether to continue or to select a model. The default is to inherit the parent's model. Whether and how you ask depends on your harness; a non-interactive harness can apply the default and log it.
+If the chosen model is not available (retired, not licensed, over quota), you may offer a specific fallback model. Fall back to the parent's model by default: the parent is running, so that model is available and the fallback cannot fail. You may ask the user first; a non-interactive harness can apply the fallback and log it.
 
 The mapping is yours to make. Your model lineup, availability, latency budget and cost policy all belong in the decision, and the mapping can adapt per task: a harness may run an `interpreting` subagent on a stronger model when the delegation involves mutating state, or downgrade when usage caps are near. Complexity is a hint you consume, not a contract you owe the file.
+
+Offer three model modes per subagent, and let the user switch between them:
+
+| Mode | Model used |
+|------|------------|
+| Recommended (default) | The one your harness picks from `complexity`, as described above |
+| Inherit | The parent's model |
+| Manual | The model the user selected |
+
+Keep the mode, and any manual model, in your own configuration, not in the subagent file. A user choice of inherit or manual outranks the recommendation derived from `complexity`.
 
 <Note>
 Model identifiers are deliberately absent from the format. They don't port across harnesses, and they rot quickly. If your harness routes subagents across providers, expose that configuration through `metadata` keys of your own naming — the field exists for exactly this.
@@ -142,7 +152,7 @@ Model identifiers are deliberately absent from the format. They don't port acros
 
 A note on heterogeneous models: any model that can run your agent loop — including small, fast, cheap ones — can host a subagent. Models that *can't* (OCR engines, transcribers, one-shot VLMs, batch classifiers) are not subagents; they are tools. Expose them through MCP servers or scripts, and let subagents and parents call them.
 
-Treat the mapping as a living decision. Your model catalog changes over time — new models land, others retire — and a sync may bring in subagents written against an older lineup. Re-map the levels when that happens: because no file records a model, nothing in the format needs to change when your catalog does.
+Treat the mapping as a living decision. Your model catalog changes over time — new models land, others retire — and files may have been written against an older lineup. Re-map the levels when that happens: because no file records a model, nothing in the format needs to change when your catalog does.
 
 ## Step 4: Disclose subagents to the parent
 
@@ -234,4 +244,4 @@ A subagent that just did an hour of exploration is expensive to redo. If your ha
 
 ## Summary
 
-The whole integration is a loop you already know: scan a directory, sync a catalog, adapt what you load, show the parent who exists, run a session, hand back a result. What makes it subagents is the isolation on the way in (body as system prompt, no conversation) and the discipline on the way out (report as untrusted data, status first). Get those two right and the format takes care of the rest.
+The whole integration is a loop you already know: read a directory live, adapt what you load, show the parent who exists, run a session, hand back a result. What makes it subagents is the isolation on the way in (body as system prompt, no conversation) and the discipline on the way out (report as untrusted data, status first). Get those two right and the format takes care of the rest.
